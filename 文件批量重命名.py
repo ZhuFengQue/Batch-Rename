@@ -7,7 +7,12 @@ def create_main_window():
     # 创建主窗口
     root = tk.Tk()
     root.title("批量文件重命名工具")
-    root.geometry("540x600")
+    root.geometry("800x600")  # 调整默认窗口大小
+
+    # 配置网格布局，使输入框可以随窗口拉伸
+    root.grid_columnconfigure(0, weight=1)
+    root.grid_columnconfigure(1, weight=1)
+    root.grid_rowconfigure(2, weight=1)
 
     # 创建选择文件夹或文件的按钮
     btn_select_folder = tk.Button(root, text="选择文件夹", command=select_folder)
@@ -21,23 +26,23 @@ def create_main_window():
     label_current_names.grid(row=1, column=0, padx=10, pady=5, sticky=tk.W)
 
     global current_names_text
-    current_names_text = tk.Text(root, height=30, width=35)
-    current_names_text.grid(row=2, column=0, padx=10, pady=5, sticky=tk.W)
+    current_names_text = tk.Text(root, height=10, width=35)
+    current_names_text.grid(row=2, column=0, padx=10, pady=5, sticky=tk.NSEW)
 
     # 创建输入新名称的文本框
     label_new_names = tk.Label(root, text="新名称 (每行对应一个文件):")
     label_new_names.grid(row=1, column=1, padx=10, pady=5, sticky=tk.W)
 
     global new_names_text
-    new_names_text = tk.Text(root, height=30, width=35)
-    new_names_text.grid(row=2, column=1, padx=10, pady=5, sticky=tk.W)
+    new_names_text = tk.Text(root, height=10, width=35)
+    new_names_text.grid(row=2, column=1, padx=10, pady=5, sticky=tk.NSEW)
 
     # 绑定粘贴事件
     new_names_text.bind("<Control-v>", add_sequence_numbers)
 
     # 添加显示或隐藏序号的复选框
     global show_sequence_var
-    show_sequence_var = tk.BooleanVar(value=False)
+    show_sequence_var = tk.BooleanVar(value=True)
     chk_show_sequence = tk.Checkbutton(root, text="添加序号(需重新选择)", variable=show_sequence_var, command=lambda: display_items(items, base_path_var))
     chk_show_sequence.grid(row=3, column=0, columnspan=2, pady=5, sticky=tk.W)
 
@@ -65,12 +70,14 @@ def create_main_window():
 def select_folder():
     folder_path = filedialog.askdirectory()
     if folder_path:
+        global items
         items = os.listdir(folder_path)
         display_items(items, folder_path)
 
 def select_files():
     file_paths = filedialog.askopenfilenames()
     if file_paths:
+        global items
         items = [os.path.basename(path) for path in file_paths]
         base_path = os.path.dirname(file_paths[0])  # 获取文件所在目录
         display_items(items, base_path)
@@ -98,6 +105,8 @@ def display_items(items, base_path):
     base_path_var = base_path
 
 def add_sequence_numbers(event):
+    # 阻止默认粘贴行为
+    event.widget.update_idletasks()
     # 获取粘贴的内容
     pasted_text = root.clipboard_get()
     lines = pasted_text.strip().split("\n")
@@ -107,8 +116,9 @@ def add_sequence_numbers(event):
             new_text += f"{index}. {line}\n"
         else:
             new_text += f"{line}\n"
-    new_names_text.delete(1.0, tk.END)
-    new_names_text.insert(tk.END, new_text)
+    new_names_text.delete(1.0, tk.END)  # 清空原有内容
+    new_names_text.insert(tk.END, new_text)  # 插入新内容
+    return "break"  # 阻止默认粘贴行为
 
 def rename_items():
     current_names = current_names_text.get(1.0, tk.END).strip().split("\n")
@@ -127,10 +137,14 @@ def rename_items():
             new_name = new_name.split(". ", 1)[1]  # 去掉序号
 
         if modify_extension_var.get():
-            old_name_with_ext, old_ext = os.path.splitext(old_name)
-            new_name_with_ext = new_name + old_ext
-            old_path = os.path.join(base_path_var, old_name_with_ext + old_ext)
-            new_path = os.path.join(base_path_var, new_name_with_ext)
+            # 获取原始文件名和后缀名
+            old_name_with_ext = os.path.join(base_path_var, old_name)
+            if not os.path.exists(old_name_with_ext):
+                # 如果文件不存在，尝试加上后缀名
+                if items:  # 确保 items 不为空
+                    old_name_with_ext = os.path.join(base_path_var, old_name + os.path.splitext(items[0])[1])
+            old_path = old_name_with_ext
+            new_path = os.path.join(base_path_var, new_name + os.path.splitext(items[0])[1]) if items else os.path.join(base_path_var, new_name)
         else:
             old_path = os.path.join(base_path_var, old_name)
             new_path = os.path.join(base_path_var, new_name)
@@ -158,5 +172,6 @@ def rename_items():
 
 if __name__ == "__main__":
     base_path_var = ""
+    items = []  # 用于存储当前选择的文件或文件夹中的文件列表
     root = create_main_window()
     root.mainloop()
